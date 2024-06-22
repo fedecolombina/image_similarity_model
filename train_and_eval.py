@@ -4,6 +4,9 @@ import torch.nn.functional as F
 from helpers.preprocessing import load_data
 from helpers.model import myCNN
 import torch.nn as nn
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
+import seaborn as sns
+import numpy as np
 
 #define contrastive loss for learning similar or dissimilar pairs
 class ContrastiveLoss(nn.Module):
@@ -22,7 +25,7 @@ class ContrastiveLoss(nn.Module):
 
         return loss
 
-def train_model(train_loader, model, criterion, optimizer, num_epochs=20):
+def train_model(train_loader, model, criterion, optimizer, num_epochs=5):
 
     #GPU if available, otherwise CPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -66,6 +69,9 @@ def train_model(train_loader, model, criterion, optimizer, num_epochs=20):
             loss.backward()
             optimizer.step()
 
+            #print outputs for debugging
+            #print(f'Epoch {epoch+1}, Batch {i+1}, Output1: {outputs1.detach().cpu().numpy()}, Output2: {outputs2.detach().cpu().numpy()}')
+
             running_loss += loss.item()
             batch_count += 1
 
@@ -87,6 +93,10 @@ def evaluate_model(test_loader, model, criterion):
     model.eval()
 
     test_loss = 0.0
+
+    all_outputs1 = []
+    all_outputs2 = []
+    all_labels = []
 
     #disable gradient calculation to evaluate model
     with torch.no_grad():
@@ -112,17 +122,41 @@ def evaluate_model(test_loader, model, criterion):
 
             test_loss += loss.item()
 
+            #save outputs and labels for model evaluation
+            all_outputs1.append(outputs1.cpu().numpy())
+            all_outputs2.append(outputs2.cpu().numpy())
+            all_labels.append(pair_labels.cpu().numpy())
+
     test_loss /= len(test_loader)
     print(f'Test Loss: {test_loss:.3f}')
+
+    #flatten
+    all_outputs1 = np.concatenate(all_outputs1)
+    all_outputs2 = np.concatenate(all_outputs2)
+    all_labels = np.concatenate(all_labels)
+
+    #calculate distances and similarity based on a threshold (e.g., 0.5)
+    distances = F.pairwise_distance(torch.tensor(all_outputs1), torch.tensor(all_outputs2)).numpy()
+
+    threshold = 0.5
+    predictions = (distances < threshold).astype(int)
+
+    #import pdb; pdb.set_trace()
+
+    accuracy = accuracy_score(all_labels, predictions)
+    precision, recall, f1, _ = precision_recall_fscore_support(all_labels, predictions, average='binary')
+
+    print(f'Accuracy: {accuracy:.3f}')
+    print(f'Precision: {precision:.3f}')
 
 if __name__ == "__main__":
 
     data_dir = 'dataset/output'
-    train_loader, test_loader = load_data(data_dir, subset_size=1, batch_size=50)
+    train_loader, test_loader = load_data(data_dir, subset_size=1, batch_size=32)
 
     model = myCNN()
     criterion = ContrastiveLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.00001)
 
     train_model(train_loader, model, criterion, optimizer)
     evaluate_model(test_loader, model, criterion)

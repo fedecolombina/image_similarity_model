@@ -15,6 +15,7 @@ The dataset used for this project can be found [here](https://data.mendeley.com/
   - `model.py`: Script defining the model architecture.
 - `dataset/`: Contains example images used for computing similarity between two shapes.
 - `models/`: Directory where trained models are saved.
+- `notebooks/`: Contains a Jupyter notebook that can be used to train the model on GPUs, e.g. using [Google Colab](https://colab.research.google.com/).
 
 ## Requirements
 
@@ -25,7 +26,7 @@ The following libraries are required:
 
 they can be installed with:
 ```sh
-pip install torch torchvision scikit-learn apex
+pip install torch torchvision scikit-learn
 ```
 
 ## Usage

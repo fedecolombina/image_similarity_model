@@ -23,17 +23,17 @@ def preprocess_image(image_path):
 def compute_similarity(model, image1, image2):
 
     with torch.no_grad():
-        
+
         output1 = model(image1)
         output2 = model(image2)
-        
+
         dist = F.pairwise_distance(output1, output2)
 
         #return distance as a scalar
         return dist.item()
 
 if __name__ == "__main__":
-    
+
     import argparse
 
     parser = argparse.ArgumentParser(description='Compute similarity between two images.')
