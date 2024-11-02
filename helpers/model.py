@@ -1,31 +1,41 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-class myCNN(nn.Module):
+class SimilarityCNN(nn.Module):
 
     def __init__(self):
-        super(myCNN, self).__init__()
+        super(SimilarityCNN, self).__init__()
+
+        # Assume 200x200 gray-scale images as input
+        self.convLayer1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1)
+        self.convLayer2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
+        self.convLayer3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
         
-        #convolutional layers (200x200 RGB images as input)
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        
-        #pooling layer
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        
-        #fully connected layers. last pooling layer has [batch_size, 64, 50, 50]
-        self.fc1 = nn.Linear(64 * 50 * 50, 256)
-        self.fc2 = nn.Linear(256, 128)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.adaptivePool = nn.AdaptiveAvgPool2d((7, 7))
+
+        self.fullyConnected1 = nn.Linear(64 * 7 * 7, 128)
+        self.fullyConnected2 = nn.Linear(128, 64)
+
+        self.dropout = nn.AlphaDropout(p=0.2) # Use AlphaDropout because of SELU
 
     def forward(self, x):
 
-        x = self.pool(F.selu(self.conv1(x)))
-        x = self.pool(F.selu(self.conv2(x)))
+        x = self.pool(F.selu(self.convLayer1(x)))
+        x = self.dropout(x)
         
-        #flatten
-        x = x.view(-1, 64 * 50 * 50)
+        x = self.pool(F.selu(self.convLayer2(x)))
+        x = self.dropout(x)
 
-        x = F.selu(self.fc1(x))
-        x = self.fc2(x)
+        x = self.pool(F.selu(self.convLayer3(x)))
+        x = self.dropout(x)
+
+        x = self.adaptivePool(x)
+
+        x = x.view(x.size(0), -1)  # Flatten
+
+        x = F.selu(self.fullyConnected1(x))
+        x = self.dropout(x)
+        x = self.fullyConnected2(x)
         
         return x

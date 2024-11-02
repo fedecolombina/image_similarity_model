@@ -2,25 +2,26 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
-from helpers.model import myCNN
+from helpers.model import SimilarityCNN
 
-def load_model(model_path):
-    model = myCNN()
+def loadModel(model_path):
+    model = SimilarityCNN()
     model.load_state_dict(torch.load(model_path))
     model.eval()
     return model
 
-def preprocess_image(image_path):
+def preprocessImage(image_path):
     transform = transforms.Compose([
         transforms.Resize((200, 200)),
-        transforms.ToTensor()
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5], std=[0.5])
     ])
-    image = Image.open(image_path).convert('RGB')
+    image = Image.open(image_path).convert('L')
     image = transform(image)
-    image = image.unsqueeze(0)  #add batch dimension, shape [1, 3, 200, 200]S
+    image = image.unsqueeze(0)  # Add batch dimension, shape [1, 1, 200, 200]
     return image
 
-def compute_similarity(model, image1, image2):
+def computeSimilarity(model, image1, image2):
 
     with torch.no_grad():
 
@@ -29,7 +30,7 @@ def compute_similarity(model, image1, image2):
 
         dist = F.pairwise_distance(output1, output2)
 
-        #return distance as a scalar
+        # Return distance as a scalar
         return dist.item()
 
 if __name__ == "__main__":
@@ -43,9 +44,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    model = load_model(args.model_path)
-    image1 = preprocess_image(args.image1)
-    image2 = preprocess_image(args.image2)
+    model = loadModel(args.model_path)
+    image1 = preprocessImage(args.image1)
+    image2 = preprocessImage(args.image2)
 
-    similarity = compute_similarity(model, image1, image2)
+    similarity = computeSimilarity(model, image1, image2)
     print(f'Similarity between images: {similarity:.3f}')

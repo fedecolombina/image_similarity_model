@@ -14,7 +14,6 @@ The dataset used for this project can be found [here](https://data.mendeley.com/
   - `preprocessing.py`: Script for loading and preprocessing the data.
   - `model.py`: Script defining the model architecture.
 - `dataset/`: Contains example images used for computing similarity between two shapes.
-- `models/`: Directory where trained models are saved.
 - `notebooks/`: Contains a Jupyter notebook that can be used to train the model on GPUs, e.g. using [Google Colab](https://colab.research.google.com/).
 
 ## Requirements
@@ -43,6 +42,6 @@ python3 train_and_eval.py
 Use the `similarity.py` script to evaluate the similarity between to shapes. 
 
 ```sh
-python3 evaluate.py image1.png image2.png --model-path models/model.pth
+python3 similarity.py image1.png image2.png --model-path models/model.pth
 ```
 
