@@ -28,10 +28,16 @@ def computeSimilarity(model, image1, image2):
         output1 = model(image1)
         output2 = model(image2)
 
-        dist = F.pairwise_distance(output1, output2)
+        output1 = F.normalize(output1, p=2, dim=1)
+        output2 = F.normalize(output2, p=2, dim=1)
 
-        # Return distance as a scalar
-        return dist.item()
+        cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
+        similarity = cos(output1, output2)
+
+        # Force values to be between 0 (similar images) and 1 (different images)
+        similarity = (similarity + 1) / 2
+
+        return similarity.item()
 
 if __name__ == "__main__":
 

@@ -4,13 +4,13 @@ import torch.nn.functional as F
 from helpers.preprocessing import loadData
 from helpers.model import SimilarityCNN
 import torch.nn as nn
-from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support, roc_curve, auc
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_curve
 import numpy as np
 
 # Define contrastive loss for learning similar or dissimilar pairs
 class ContrastiveLoss(nn.Module):
 
-    def __init__(self, margin=1.0):
+    def __init__(self, margin=2.0):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
 
@@ -24,7 +24,7 @@ class ContrastiveLoss(nn.Module):
 
         return loss
 
-def trainModel(train_loader, model, criterion, optimizer, num_epochs=5):
+def trainModel(train_loader, model, criterion, optimizer, num_epochs=10):
 
     # Use GPU if available, otherwise CPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -133,8 +133,8 @@ def evaluateModel(test_loader, model, criterion):
     fpr, tpr, thresholds = roc_curve(all_labels, -distances)  # Minus sign for similarity
     #roc_auc = auc(fpr, tpr)
 
-    # Find the threshold that maximizes the efficiency
-    optimal_idx = np.argmax(tpr - fpr)
+    # Youden's J statistic for optimal threshold
+    optimal_idx = np.argmax(tpr + (1 - fpr) - 1)
     optimal_threshold = thresholds[optimal_idx]
 
     #import pdb 
@@ -157,7 +157,7 @@ if __name__ == "__main__":
 
     model = SimilarityCNN()
     criterion = ContrastiveLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=1e-5)
 
     trainModel(train_loader, model, criterion, optimizer)
     evaluateModel(test_loader, model, criterion)
