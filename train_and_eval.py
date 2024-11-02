@@ -55,7 +55,7 @@ def trainModel(train_loader, model, criterion, optimizer, num_epochs=10):
             data2 = data[half_batch_size:]
 
             # Create binary labels for the pairs 
-            pair_labels = (labels[:half_batch_size] != labels[half_batch_size:]).long().to(device)
+            pair_labels = (labels[:half_batch_size] != labels[half_batch_size:]).float().to(device)
 
             outputs1 = model(data1)
             outputs2 = model(data2)
@@ -104,7 +104,7 @@ def evaluateModel(test_loader, model, criterion):
             data1 = data[:half_batch_size]
             data2 = data[half_batch_size:]
 
-            pair_labels = (labels[:half_batch_size] != labels[half_batch_size:]).long().to(device)
+            pair_labels = (labels[:half_batch_size] != labels[half_batch_size:]).float().to(device)
 
             outputs1 = model(data1)
             outputs2 = model(data2)
@@ -158,7 +158,7 @@ if __name__ == "__main__":
 
     model = SimilarityCNN()
     criterion = ContrastiveLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
     trainModel(train_loader, model, criterion, optimizer)
     evaluateModel(test_loader, model, criterion)
