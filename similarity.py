@@ -32,9 +32,9 @@ def computeSimilarity(model, image1, image2):
         output1 = model(image1)
         output2 = model(image2)
 
-        distance = F.pairwise_distance(output1, output2)        
-        similarity = torch.sigmoid(-distance).item() * 100
-
+        distance = F.pairwise_distance(output1, output2) 
+        similarity = (1 / (1 + distance)).item() * 100
+       
         return similarity
 
 if __name__ == "__main__":

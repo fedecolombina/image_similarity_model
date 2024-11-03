@@ -121,7 +121,7 @@ def evaluateModel(test_loader, model, criterion):
     all_outputs = np.concatenate(all_outputs)
     all_labels = np.concatenate(all_labels)
 
-    similarities = 1 / (1 + np.exp(-all_outputs))
+    similarities =  1 / (1 + all_outputs)
 
     fpr, tpr, thresholds = roc_curve(all_labels, similarities)
     roc_auc = auc(fpr, tpr) 
