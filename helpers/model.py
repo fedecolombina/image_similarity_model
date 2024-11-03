@@ -7,15 +7,15 @@ class SimilarityCNN(nn.Module):
         super(SimilarityCNN, self).__init__()
 
         # Assume 200x200 gray-scale images as input
-        self.convLayer1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1)
-        self.convLayer2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
-        self.convLayer3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.convLayer1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
+        self.convLayer2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.convLayer3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
         
         self.pool = nn.MaxPool2d(2, 2)
         self.adaptivePool = nn.AdaptiveAvgPool2d((7, 7))
 
-        self.fullyConnected1 = nn.Linear(64 * 7 * 7, 128)
-        self.fullyConnected2 = nn.Linear(128, 64)
+        self.fullyConnected1 = nn.Linear(128 * 7 * 7, 256)
+        self.fullyConnected2 = nn.Linear(256, 128)
 
         self.dropout = nn.AlphaDropout(p=0.2) # Use AlphaDropout because of SELU
 

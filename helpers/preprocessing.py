@@ -28,12 +28,12 @@ def getLabelFromFilename(filename):
     shape = os.path.basename(filename).split('_')[0] # Images start with shape (label)
     return shape
 
-def loadData(data_dir, test_size=0.2, batch_size=32):
+def loadData(data_dir, test_size=0.2, batch_size=32, max_samples=None):
 
     image_paths = glob.glob(os.path.join(data_dir, '*.png'))
     labels = [getLabelFromFilename(path) for path in image_paths]
 
-    label_set = sorted(set(labels)) # Sort to ensure numbers are the same in train and test datasets
+    label_set = sorted(set(labels)) 
     label_map = {label: idx for idx, label in enumerate(label_set)}
     numeric_labels = [label_map[label] for label in labels]
 
@@ -42,22 +42,26 @@ def loadData(data_dir, test_size=0.2, batch_size=32):
 
     train_paths, test_paths, train_labels, test_labels = train_test_split(image_paths, numeric_labels, test_size=test_size, random_state=42)
 
+    if max_samples is not None:
+        train_paths = train_paths[:max_samples]
+        train_labels = train_labels[:max_samples]
+        test_paths = test_paths[:max_samples]
+        test_labels = test_labels[:max_samples]
+
     # Transfromations for training dataset (with data augmentation)
     train_transform = transforms.Compose([
         transforms.Resize((200, 200)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
-        transforms.RandomRotation(30),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
-    ])
+        transforms.RandomAffine(degrees=30, scale=(0.8, 1.2)),
+        transforms.ToTensor()    
+        ])
 
     # Transformations for test dataset (no data augmentation)
     test_transform = transforms.Compose([
         transforms.Resize((200, 200)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
-    ])
+        transforms.ToTensor()
+        ])
 
     train_dataset = GeometricShapesDataset(train_paths, train_labels, transform=train_transform)
     test_dataset = GeometricShapesDataset(test_paths, test_labels, transform=test_transform)

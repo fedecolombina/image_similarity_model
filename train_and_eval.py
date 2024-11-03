@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
@@ -5,26 +6,22 @@ from helpers.preprocessing import loadData
 from helpers.model import SimilarityCNN
 import torch.nn as nn
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_curve, auc
-import numpy as np
+from torch.optim.lr_scheduler import StepLR
+import random
 
 # Define contrastive loss for learning similar or dissimilar pairs
 class ContrastiveLoss(nn.Module):
-
-    def __init__(self, margin=2.0):
+    def __init__(self, margin=1.0):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
 
     def forward(self, output1, output2, label):
         dist = F.pairwise_distance(output1, output2)
-
-        loss = (1 - label) * torch.pow(dist, 2) \
-               + label * torch.pow(torch.clamp(self.margin - dist, min=0.0), 2)
-
+        loss = label * torch.pow(dist, 2) + (1 - label) * torch.pow(torch.clamp(self.margin - dist, min=0.0), 2)
         loss = torch.mean(loss)
-
         return loss
 
-def trainModel(train_loader, model, criterion, optimizer, num_epochs=10):
+def trainModel(train_loader, model, criterion, optimizer, scheduler, num_epochs=20):
 
     # Use GPU if available, otherwise CPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -55,8 +52,7 @@ def trainModel(train_loader, model, criterion, optimizer, num_epochs=10):
             data2 = data[half_batch_size:]
 
             # Create binary labels for the pairs 
-            pair_labels = (labels[:half_batch_size] != labels[half_batch_size:]).float().to(device)
-
+            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).long().to(device)
             outputs1 = model(data1)
             outputs2 = model(data2)
 
@@ -68,6 +64,8 @@ def trainModel(train_loader, model, criterion, optimizer, num_epochs=10):
 
             running_loss += loss.item()
             batch_count += 1
+
+        scheduler.step()
 
         epoch_loss = running_loss / batch_count
         print(f'Epoch {epoch + 1}, Loss: {epoch_loss:.3f}')
@@ -104,7 +102,7 @@ def evaluateModel(test_loader, model, criterion):
             data1 = data[:half_batch_size]
             data2 = data[half_batch_size:]
 
-            pair_labels = (labels[:half_batch_size] != labels[half_batch_size:]).float().to(device)
+            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).long().to(device)
 
             outputs1 = model(data1)
             outputs2 = model(data2)
@@ -113,12 +111,8 @@ def evaluateModel(test_loader, model, criterion):
             test_loss += loss.item()
 
             distances = F.pairwise_distance(outputs1, outputs2)
-            
-            # Force outputs to be between 0 and 1
-            max_distance = distances.max()
-            similarities = 1 - distances / max_distance
-            
-            all_outputs.append(similarities.cpu().numpy())
+                        
+            all_outputs.append(distances.cpu().numpy())
             all_labels.append(pair_labels.cpu().numpy())
 
 
@@ -128,21 +122,21 @@ def evaluateModel(test_loader, model, criterion):
     all_outputs = np.concatenate(all_outputs)
     all_labels = np.concatenate(all_labels)
 
-    # Evaluate similarity based on a threshold 
     fpr, tpr, thresholds = roc_curve(all_labels, all_outputs)
     roc_auc = auc(fpr, tpr) 
 
-    # Youden's J statistic for optimal threshold
-    optimal_idx = np.argmax(tpr + (1 - fpr) - 1)
+    # Optimal threshold
+    optimal_idx = np.argmax(tpr - fpr)
     optimal_threshold = thresholds[optimal_idx]
 
     #import pdb 
     #pdb.set_trace()
 
-    predictions = (all_outputs >= optimal_threshold).astype(int)
+    predictions = (all_outputs < optimal_threshold).astype(int)
 
     accuracy = accuracy_score(all_labels, predictions)
     precision, recall, f1, _ = precision_recall_fscore_support(all_labels, predictions, average='binary')
+
 
     print(f'AUC: {roc_auc:.3f}')
     print(f'Optimal Threshold: {optimal_threshold:.3f}')
@@ -154,11 +148,12 @@ def evaluateModel(test_loader, model, criterion):
 if __name__ == "__main__":
 
     data_dir = 'dataset/output'
-    train_loader, test_loader = loadData(data_dir, batch_size=32)
+    train_loader, test_loader = loadData(data_dir, batch_size=32, max_samples=1000)
 
     model = SimilarityCNN()
     criterion = ContrastiveLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    scheduler = StepLR(optimizer, step_size=1, gamma=0.1)
 
-    trainModel(train_loader, model, criterion, optimizer)
+    trainModel(train_loader, model, criterion, optimizer, scheduler)
     evaluateModel(test_loader, model, criterion)

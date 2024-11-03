@@ -16,8 +16,7 @@ def preprocessImage(image_path):
 
     transform = transforms.Compose([
         transforms.Resize((200, 200)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
+        transforms.ToTensor()
     ])
 
     image = Image.open(image_path).convert('L')
@@ -33,9 +32,9 @@ def computeSimilarity(model, image1, image2):
         output1 = model(image1)
         output2 = model(image2)
 
-        distance = F.pairwise_distance(output1, output2)
-        similarity = 1 / (1 + distance.item())
-        
+        distance = F.pairwise_distance(output1, output2)        
+        similarity = torch.sigmoid(-distance).item() * 100
+
         return similarity
 
 if __name__ == "__main__":
@@ -52,6 +51,5 @@ if __name__ == "__main__":
     model = loadModel(args.model_path)
     image1 = preprocessImage(args.image1)
     image2 = preprocessImage(args.image2)
-
     similarity = computeSimilarity(model, image1, image2)
-    print(f'Similarity between images: {similarity:.3f}')
+    print(f'Similarity between images: {similarity:.3f}%')
