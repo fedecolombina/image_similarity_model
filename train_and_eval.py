@@ -121,22 +121,18 @@ def evaluateModel(test_loader, model, criterion):
     all_outputs = np.concatenate(all_outputs)
     all_labels = np.concatenate(all_labels)
 
-    # Change sign for correct evaluation of ROC curve
-    inverted_distances = -all_outputs
+    similarities = 1 / (1 + np.exp(-all_outputs))
 
-    fpr, tpr, thresholds = roc_curve(all_labels, inverted_distances)
+    fpr, tpr, thresholds = roc_curve(all_labels, similarities)
     roc_auc = auc(fpr, tpr) 
 
     # Optimal threshold
-    optimal_idx = np.argmax(tpr - fpr)
-    optimal_threshold = thresholds[optimal_idx]
+    optimal_threshold = thresholds[np.argmax(tpr - fpr)]
 
     #import pdb 
     #pdb.set_trace()
 
-    # Convert back to original distance threshold
-    distance_threshold = -optimal_threshold
-    predictions = (all_outputs < distance_threshold).astype(int)
+    predictions = (similarities >= optimal_threshold).astype(int)
 
     accuracy = accuracy_score(all_labels, predictions)
     precision, recall, f1, _ = precision_recall_fscore_support(all_labels, predictions, average='binary')
