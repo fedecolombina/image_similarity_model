@@ -7,7 +7,6 @@ from helpers.model import SimilarityCNN
 import torch.nn as nn
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_curve, auc
 from torch.optim.lr_scheduler import StepLR
-import random
 
 # Define contrastive loss for learning similar or dissimilar pairs
 class ContrastiveLoss(nn.Module):
@@ -52,7 +51,7 @@ def trainModel(train_loader, model, criterion, optimizer, scheduler, num_epochs=
             data2 = data[half_batch_size:]
 
             # Create binary labels for the pairs 
-            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).long().to(device)
+            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).to(device)
             outputs1 = model(data1)
             outputs2 = model(data2)
 
@@ -102,7 +101,7 @@ def evaluateModel(test_loader, model, criterion):
             data1 = data[:half_batch_size]
             data2 = data[half_batch_size:]
 
-            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).long().to(device)
+            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).to(device)
 
             outputs1 = model(data1)
             outputs2 = model(data2)
@@ -148,7 +147,7 @@ def evaluateModel(test_loader, model, criterion):
 if __name__ == "__main__":
 
     data_dir = 'dataset/output'
-    train_loader, test_loader = loadData(data_dir, batch_size=32, max_samples=1000)
+    train_loader, test_loader = loadData(data_dir, batch_size=32)
 
     model = SimilarityCNN()
     criterion = ContrastiveLoss()
