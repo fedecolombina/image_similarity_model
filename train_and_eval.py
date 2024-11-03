@@ -35,7 +35,7 @@ def trainModel(train_loader, model, criterion, optimizer, scheduler, num_epochs=
 
         for i, (data, labels) in enumerate(train_loader, 0):
             data = data.to(device)
-            labels = torch.tensor(labels, dtype=torch.long).to(device)
+            labels = torch.tensor(labels, dtype=torch.float).to(device)
 
             # Reset gradients from previous batch
             optimizer.zero_grad()
@@ -51,7 +51,7 @@ def trainModel(train_loader, model, criterion, optimizer, scheduler, num_epochs=
             data2 = data[half_batch_size:]
 
             # Create binary labels for the pairs 
-            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).to(device)
+            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).float().to(device)
             outputs1 = model(data1)
             outputs2 = model(data2)
 
@@ -91,7 +91,7 @@ def evaluateModel(test_loader, model, criterion):
 
         for data, labels in test_loader:
             data = data.to(device)
-            labels = torch.tensor(labels, dtype=torch.long).to(device)
+            labels = torch.tensor(labels, dtype=torch.float).to(device)
 
             if len(data) % 2 != 0:
                 data = data[:-1]
@@ -101,7 +101,7 @@ def evaluateModel(test_loader, model, criterion):
             data1 = data[:half_batch_size]
             data2 = data[half_batch_size:]
 
-            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).to(device)
+            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).float().to(device)
 
             outputs1 = model(data1)
             outputs2 = model(data2)
@@ -121,7 +121,10 @@ def evaluateModel(test_loader, model, criterion):
     all_outputs = np.concatenate(all_outputs)
     all_labels = np.concatenate(all_labels)
 
-    fpr, tpr, thresholds = roc_curve(all_labels, all_outputs)
+    # Change sign for correct evaluation of ROC curve
+    inverted_distances = -all_outputs
+
+    fpr, tpr, thresholds = roc_curve(all_labels, inverted_distances)
     roc_auc = auc(fpr, tpr) 
 
     # Optimal threshold
@@ -131,7 +134,9 @@ def evaluateModel(test_loader, model, criterion):
     #import pdb 
     #pdb.set_trace()
 
-    predictions = (all_outputs < optimal_threshold).astype(int)
+    # Convert back to original distance threshold
+    distance_threshold = -optimal_threshold
+    predictions = (all_outputs < distance_threshold).astype(int)
 
     accuracy = accuracy_score(all_labels, predictions)
     precision, recall, f1, _ = precision_recall_fscore_support(all_labels, predictions, average='binary')
@@ -152,7 +157,7 @@ if __name__ == "__main__":
     model = SimilarityCNN()
     criterion = ContrastiveLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    scheduler = StepLR(optimizer, step_size=1, gamma=0.1)
+    scheduler = StepLR(optimizer, step_size=3, gamma=0.1)
 
     trainModel(train_loader, model, criterion, optimizer, scheduler)
     evaluateModel(test_loader, model, criterion)
