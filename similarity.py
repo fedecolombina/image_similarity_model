@@ -32,10 +32,10 @@ def computeSimilarity(model, image1, image2):
         output1 = model(image1)
         output2 = model(image2)
 
-        distance = F.pairwise_distance(output1, output2) 
-        similarity = (1 / (1 + distance)).item() * 100
-       
-        return similarity
+        cosine_similarity = F.cosine_similarity(output1, output2).item()
+        similarity = ((cosine_similarity + 1) / 2 )*100  # Scale cosine similarity to be between 0 and 1
+
+        return similarity    
 
 if __name__ == "__main__":
 

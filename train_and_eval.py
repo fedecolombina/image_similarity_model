@@ -109,11 +109,11 @@ def evaluateModel(test_loader, model, criterion):
             loss = criterion(outputs1, outputs2, pair_labels)
             test_loss += loss.item()
 
-            distances = F.pairwise_distance(outputs1, outputs2)
-                        
-            all_outputs.append(distances.cpu().numpy())
-            all_labels.append(pair_labels.cpu().numpy())
+            cosine_similarity = F.cosine_similarity(outputs1, outputs2).cpu().numpy()
+            similarities = ((cosine_similarity + 1) / 2 ) # Scale cosine similarity to be between 0 and 1
 
+            all_outputs.append(similarities)
+            all_labels.append(pair_labels.cpu().numpy())
 
     test_loss /= len(test_loader)
     print(f'Test Loss: {test_loss:.3f}')
@@ -121,25 +121,16 @@ def evaluateModel(test_loader, model, criterion):
     all_outputs = np.concatenate(all_outputs)
     all_labels = np.concatenate(all_labels)
 
-    similarities =  1 / (1 + all_outputs)
-
-    fpr, tpr, thresholds = roc_curve(all_labels, similarities)
+    fpr, tpr, _ = roc_curve(all_labels, all_outputs)
     roc_auc = auc(fpr, tpr) 
 
-    # Optimal threshold
-    optimal_threshold = thresholds[np.argmax(tpr - fpr)]
-
-    #import pdb 
-    #pdb.set_trace()
-
-    predictions = (similarities >= optimal_threshold).astype(int)
+    threshold = 0.5
+    predictions = (all_outputs >= threshold).astype(int)
 
     accuracy = accuracy_score(all_labels, predictions)
     precision, recall, f1, _ = precision_recall_fscore_support(all_labels, predictions, average='binary')
 
-
     print(f'AUC: {roc_auc:.3f}')
-    print(f'Optimal Threshold: {optimal_threshold:.3f}')
     print(f'Accuracy: {accuracy:.3f}')
     print(f'Precision: {precision:.3f}')
     print(f'Recall: {recall:.3f}')

@@ -51,9 +51,9 @@ def loadData(data_dir, test_size=0.2, batch_size=32, max_samples=None):
     # Transfromations for training dataset (with data augmentation)
     train_transform = transforms.Compose([
         transforms.Resize((200, 200)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomVerticalFlip(),
-        transforms.RandomAffine(degrees=30, scale=(0.8, 1.2)),
+        #transforms.RandomHorizontalFlip(),
+        #transforms.RandomVerticalFlip(),
+        #transforms.RandomAffine(degrees=30, scale=(0.8, 1.2)),
         transforms.ToTensor()    
         ])
 
