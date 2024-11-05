@@ -5,23 +5,56 @@ from sklearn.model_selection import train_test_split
 from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
 
-class GeometricShapesDataset(Dataset):
 
-    def __init__(self, image_paths, numeric_labels, transform=None):
+import os
+import glob
+from PIL import Image
+from sklearn.model_selection import train_test_split
+from torchvision import transforms
+from torch.utils.data import DataLoader, Dataset
+import random
+
+class GeometricShapesDataset(Dataset):
+    def __init__(self, image_paths, labels, transform=None, pairs_per_class=5000): # The dataset provides 10k images per class
         self.image_paths = image_paths
-        self.numeric_labels = numeric_labels
+        self.labels = labels
         self.transform = transform
+        self.pairs = []
+        self.pairs_per_class = pairs_per_class
+        self._create_pairs()
+
+    def _create_pairs(self): # For class balance 
+        label_to_indices = {}
+        for idx, label in enumerate(self.labels):
+            label_to_indices.setdefault(label, []).append(idx)
+        
+        for label in label_to_indices:
+            indices = label_to_indices[label]
+            n = len(indices)
+            if n < 2:
+                continue
+            for _ in range(self.pairs_per_class):
+                i, j = random.sample(indices, 2)
+                self.pairs.append((i, j, 1))  # Similar pair
+        
+        all_labels = list(set(self.labels))
+        for _ in range(self.pairs_per_class * len(all_labels)):
+            label1, label2 = random.sample(all_labels, 2) # Take two different labels
+            idx1 = random.choice([i for i, l in enumerate(self.labels) if l == label1])
+            idx2 = random.choice([i for i, l in enumerate(self.labels) if l == label2])
+            self.pairs.append((idx1, idx2, 0))  # Dissimilar pair
 
     def __len__(self):
-        return len(self.image_paths) 
+        return len(self.pairs)
 
     def __getitem__(self, idx):
-        img_path = self.image_paths[idx]
-        label = self.numeric_labels[idx]
-        image = Image.open(img_path).convert('L')
+        idx1, idx2, label = self.pairs[idx]
+        img1 = Image.open(self.image_paths[idx1]).convert('L')
+        img2 = Image.open(self.image_paths[idx2]).convert('L')
         if self.transform:
-            image = self.transform(image)
-        return image, label
+            img1 = self.transform(img1)
+            img2 = self.transform(img2)
+        return (img1, img2), label
 
 def getLabelFromFilename(filename):
 
@@ -54,8 +87,7 @@ def loadData(data_dir, test_size=0.2, batch_size=32, max_samples=None):
         #transforms.RandomHorizontalFlip(),
         #transforms.RandomVerticalFlip(),
         #transforms.RandomAffine(degrees=30, scale=(0.8, 1.2)),
-        transforms.ToTensor()    
-        ])
+        transforms.ToTensor()        ])
 
     # Transformations for test dataset (no data augmentation)
     test_transform = transforms.Compose([

@@ -5,9 +5,8 @@ import torch.nn.functional as F
 from helpers.preprocessing import loadData
 from helpers.model import SimilarityCNN
 import torch.nn as nn
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_curve, auc
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from torch.optim.lr_scheduler import StepLR
-from sklearn.utils.class_weight import compute_class_weight
 from collections import Counter
 
 # Define contrastive loss for learning similar or dissimilar pairs
@@ -59,7 +58,7 @@ def computeClassWeights(train_loader):
     }
     return class_weights
 
-def trainModel(train_loader, model, criterion, optimizer, scheduler, class_weights, num_epochs=20):
+def trainModel(train_loader, model, criterion, optimizer, scheduler, num_epochs=45):
 
     # Use GPU if available, otherwise CPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -72,29 +71,22 @@ def trainModel(train_loader, model, criterion, optimizer, scheduler, class_weigh
         running_loss = 0.0
         batch_count = 0
 
-        for i, (data, labels) in enumerate(train_loader, 0):
-            data = data.to(device)
-            labels = torch.tensor(labels, dtype=torch.float).to(device)
+        similarity_similar_sum = 0.0
+        similarity_dissimilar_sum = 0.0
+        similar_pair_count = 0
+        dissimilar_pair_count = 0
 
-            # Reset gradients from previous batch
+        for i, ((data1, data2), labels) in enumerate(train_loader, 0):
+            data1 = data1.to(device)
+            data2 = data2.to(device)
+            labels = labels.to(device).float()
+
             optimizer.zero_grad()
 
-            # Ensure batch size is even..
-            if len(data) % 2 != 0:
-                data = data[:-1]
-                labels = labels[:-1]
-
-            # ..and split batches into pairs
-            half_batch_size = len(data) // 2
-            data1 = data[:half_batch_size]
-            data2 = data[half_batch_size:]
-
-            # Create binary labels for the pairs 
-            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).float().to(device)
             outputs1 = model(data1)
             outputs2 = model(data2)
 
-            loss = criterion(outputs1, outputs2, pair_labels)
+            loss = criterion(outputs1, outputs2, labels)
 
             # Backpropagation
             loss.backward()
@@ -102,11 +94,24 @@ def trainModel(train_loader, model, criterion, optimizer, scheduler, class_weigh
 
             running_loss += loss.item()
             batch_count += 1
+   
+            euclidean_distance = F.pairwise_distance(outputs1, outputs2)
+            similarity = 1 / (1 + euclidean_distance) 
+
+            similarity_similar_sum += similarity[labels == 1].sum().item()
+            similarity_dissimilar_sum += similarity[labels == 0].sum().item()
+            similar_pair_count += (labels == 1).sum().item()
+            dissimilar_pair_count += (labels == 0).sum().item()
 
         scheduler.step()
 
         epoch_loss = running_loss / batch_count
+        average_similarity_similar = similarity_similar_sum / similar_pair_count if similar_pair_count > 0 else 0
+        average_similarity_dissimilar = similarity_dissimilar_sum / dissimilar_pair_count if dissimilar_pair_count > 0 else 0
+        
         print(f'Epoch {epoch + 1}, Loss: {epoch_loss:.3f}')
+        print(f'Average Similarity (Similar Pairs): {average_similarity_similar:.3f}')
+        print(f'Average Similarity (Dissimilar Pairs): {average_similarity_dissimilar:.3f}')
 
     print('Training finished.')
 
@@ -114,13 +119,11 @@ def trainModel(train_loader, model, criterion, optimizer, scheduler, class_weigh
     torch.save(model.state_dict(), model_save_path)
     print(f'Model saved to {model_save_path}')
 
-def evaluateModel(test_loader, model, criterion):
+def evaluateModel(test_loader, model):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     model.eval()
-
-    test_loss = 0.0
 
     all_outputs = []
     all_labels = []
@@ -128,56 +131,51 @@ def evaluateModel(test_loader, model, criterion):
     # Disable gradient calculation to evaluate model
     with torch.no_grad():
 
-        for data, labels in test_loader:
-            data = data.to(device)
-            labels = torch.tensor(labels, dtype=torch.float).to(device)
+        for ((data1, data2), labels) in test_loader:
+            
+            data1 = data1.to(device)
+            data2 = data2.to(device)
 
-            if len(data) % 2 != 0:
-                data = data[:-1]
-                labels = labels[:-1]
-
-            half_batch_size = len(data) // 2
-            data1 = data[:half_batch_size]
-            data2 = data[half_batch_size:]
-
-            pair_labels = (labels[:half_batch_size] == labels[half_batch_size:]).float().to(device)
+            labels = labels.to(device).float()
 
             outputs1 = model(data1)
             outputs2 = model(data2)
-
-            loss = criterion(outputs1, outputs2, pair_labels)
-            test_loss += loss.item()
 
             # Use euclidean distance to estimate similarity
             euclidean_distance = F.pairwise_distance(outputs1, outputs2).cpu().numpy()
             similarities = 1 / (1 + euclidean_distance)  # Scale similarity to be between 0 and 1
 
             all_outputs.append(similarities)
-            all_labels.append(pair_labels.cpu().numpy())
-
-    test_loss /= len(test_loader)
-    print(f'Test Loss: {test_loss:.3f}')
+            all_labels.append(labels.cpu().numpy())
 
     all_outputs = np.concatenate(all_outputs)
     all_labels = np.concatenate(all_labels)
 
     # Find optimal threshold before making predictions
-    fpr, tpr, thresholds = roc_curve(all_labels, all_outputs)
-    roc_auc = auc(fpr, tpr) 
+    thresholds = np.linspace(0, 1, 100)
+    optimal_threshold = 0.5
+    best_f1 = 0
+    final_precision = 0
+    final_recall = 0
 
-    optimal_idx = np.argmax(tpr - fpr)
-    optimal_threshold = thresholds[optimal_idx]
+    for threshold in thresholds:
+        predictions_tmp = (all_outputs >= threshold).astype(int)
+        precision_tmp, recall_tmp, f1_tmp, _ = precision_recall_fscore_support(all_labels, predictions_tmp, average='binary')
+        
+        if f1_tmp > best_f1:
+            best_f1 = f1_tmp
+            optimal_threshold = threshold
+            final_precision = precision_tmp
+            final_recall = recall_tmp
+            predictions = predictions_tmp
 
-    predictions = (all_outputs >= optimal_threshold).astype(int)
+    print(f'Optimal Threshold (Max F1): {optimal_threshold:.3f}, F1 Score: {best_f1:.3f}')
 
     accuracy = accuracy_score(all_labels, predictions)
-    precision, recall, f1, _ = precision_recall_fscore_support(all_labels, predictions, average='binary')
 
-    print(f'AUC: {roc_auc:.3f}')
     print(f'Accuracy: {accuracy:.3f}')
-    print(f'Precision: {precision:.3f}')
-    print(f'Recall: {recall:.3f}')
-    print(f'F1 Score: {f1:.3f}')
+    print(f'Precision: {final_precision:.3f}')
+    print(f'Recall: {final_recall:.3f}')
 
 if __name__ == "__main__":
 
@@ -188,9 +186,9 @@ if __name__ == "__main__":
     print(f'Class Weights: {class_weight_dict}')
 
     model = SimilarityCNN()
-    criterion = ContrastiveLoss(margin=2.0, weight_sim=class_weight_dict[1], weight_dissim=class_weight_dict[0])
+    criterion = ContrastiveLoss(margin=1.0, weight_sim=class_weight_dict[1], weight_dissim=class_weight_dict[0])
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    scheduler = StepLR(optimizer, step_size=3, gamma=0.1) # Reduce LR during training
+    scheduler = StepLR(optimizer, step_size=15, gamma=0.1) # Reduce LR during training
 
-    trainModel(train_loader, model, criterion, optimizer, scheduler, class_weight_dict)
-    evaluateModel(test_loader, model, criterion)
+    trainModel(train_loader, model, criterion, optimizer, scheduler)
+    evaluateModel(test_loader, model)
