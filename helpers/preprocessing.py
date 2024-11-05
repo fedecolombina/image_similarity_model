@@ -37,9 +37,6 @@ def loadData(data_dir, test_size=0.2, batch_size=32, max_samples=None):
     label_map = {label: idx for idx, label in enumerate(label_set)}
     numeric_labels = [label_map[label] for label in labels]
 
-    #import pdb
-    #pdb.set_trace()
-
     train_paths, test_paths, train_labels, test_labels = train_test_split(image_paths, numeric_labels, test_size=test_size, random_state=42)
 
     if max_samples is not None:
@@ -47,6 +44,9 @@ def loadData(data_dir, test_size=0.2, batch_size=32, max_samples=None):
         train_labels = train_labels[:max_samples]
         test_paths = test_paths[:max_samples]
         test_labels = test_labels[:max_samples]
+
+    #import pdb
+    #pdb.set_trace()
 
     # Transfromations for training dataset (with data augmentation)
     train_transform = transforms.Compose([

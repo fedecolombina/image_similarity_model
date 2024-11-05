@@ -17,7 +17,7 @@ class SimilarityCNN(nn.Module):
         self.fullyConnected1 = nn.Linear(128 * 7 * 7, 256)
         self.fullyConnected2 = nn.Linear(256, 128)
 
-        self.dropout = nn.AlphaDropout(p=0.2) # Use AlphaDropout because of SELU
+        self.dropout = nn.AlphaDropout(p=0.3) # Use AlphaDropout because of SELU
 
     def forward(self, x):
 
